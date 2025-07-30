@@ -9,7 +9,7 @@ from datetime import datetime
 # -----------------------------------------------------------------------------
 
 # !!! สำคัญ: แก้ไข IP Address ของ Raspberry Pi ของคุณตรงนี้ !!!
-API_BASE_URL = "http://192.168.1.145:8000"
+API_BASE_URL = "http://localhost:8000"
 
 def get_all_orders():
     """ดึงข้อมูลออเดอร์ทั้งหมดจาก Backend"""
