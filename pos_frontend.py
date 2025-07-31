@@ -1,14 +1,9 @@
-# 1_🛒_Point_of_Sale.py (Final Version with Product Options)
-
 import streamlit as st
 import requests
-import uuid  # ใช้สำหรับสร้าง ID ที่ไม่ซ้ำกันให้แต่ละรายการในตะกร้า
+import uuid
 from typing import List, Dict, Any
 
-# -----------------------------------------------------------------------------
-# ⚙️ การตั้งค่าและฟังก์ชันสำหรับเชื่อมต่อ API (ไม่มีการเปลี่ยนแปลง)
-# -----------------------------------------------------------------------------
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = "http://192.168.1.50:80"
 
 def get_products() -> List[Dict[str, Any]]:
     try:
@@ -30,48 +25,30 @@ def post_order(order_items: List[Dict[str, Any]]) -> bool:
         st.error(f"ไม่สามารถบันทึกออเดอร์ได้: {e.response.json().get('detail')}")
         return False
 
-# -----------------------------------------------------------------------------
-# 🛒 การจัดการสถานะของแอป (ตะกร้าสินค้า) - โครงสร้างใหม่ทั้งหมด
-# -----------------------------------------------------------------------------
-
-# ใช้ st.session_state.cart เป็น dict {line_item_id: {details}}
-# line_item_id คือ UUID ที่สร้างขึ้นใหม่สำหรับแต่ละรายการ เพื่อแยกรายการที่มี option ต่างกัน
 if 'cart' not in st.session_state:
     st.session_state.cart = {}
 
 def add_to_cart(product: Dict[str, Any], selected_options: List[Dict[str, Any]]):
-    """เพิ่มรายการใหม่ (พร้อม options) ลงในตะกร้าด้วย ID ที่ไม่ซ้ำกัน"""
     line_item_id = str(uuid.uuid4())
     options_price = sum(opt.get('price', 0) for opt in selected_options)
-    
     st.session_state.cart[line_item_id] = {
-        "product_id": product['id'],
-        "name": product['name'],
-        "base_price": product['price'],
-        "quantity": 1,
-        "selected_options": selected_options,
-        "options_price": options_price
+        "product_id": product['id'], "name": product['name'], "base_price": product['price'],
+        "quantity": 1, "selected_options": selected_options, "options_price": options_price
     }
     st.rerun()
 
 def remove_from_cart(line_item_id: str):
-    """ลบรายการออกจากตะกร้าโดยใช้ line_item_id"""
     if line_item_id in st.session_state.cart:
         del st.session_state.cart[line_item_id]
         st.rerun()
 
 def update_quantity(line_item_id: str, quantity: int):
-    """อัปเดตจำนวนสินค้าในตะกร้าโดยใช้ line_item_id"""
     if line_item_id in st.session_state.cart:
         if quantity > 0:
             st.session_state.cart[line_item_id]['quantity'] = quantity
         else:
             del st.session_state.cart[line_item_id]
         st.rerun()
-
-# -----------------------------------------------------------------------------
-# 🖼️ ส่วนแสดงผล (UI Layout)
-# -----------------------------------------------------------------------------
 
 st.set_page_config(layout="wide", page_title="Point of Sale")
 st.title("☕ Point of Sale (POS)")
@@ -86,7 +63,6 @@ else:
 
 col_menu, col_cart = st.columns([2, 1.2])
 
-# --- คอลัมน์ซ้าย: แสดงเมนูสินค้า (UI ใหม่สำหรับ Options) ---
 with col_menu:
     st.header("เมนูสินค้า")
     selected_category = st.selectbox("เลือกหมวดหมู่:", options=categories_with_all)
@@ -96,41 +72,29 @@ with col_menu:
         st.info("ไม่พบสินค้าในหมวดหมู่นี้")
     else:
         for product in filtered_products:
-            # ใช้ st.expander เพื่อสร้าง UI สำหรับเลือก Option
             with st.expander(f"{product['name']} - {product['price']:.2f} ฿", expanded=False):
                 col_img, col_details = st.columns([1, 2])
                 with col_img:
                     if product.get("image_url"):
                         st.image(f"{API_BASE_URL}{product['image_url']}", use_container_width=True)
-
                 with col_details:
                     st.subheader(product['name'])
                     selected_options = []
-                    
                     if product.get('options'):
                         for option_group in product['options']:
                             st.write(f"**{option_group['name']}**")
                             choices_data = {f"{c['name']} (+{c['price']:.2f}฿)": c for c in option_group['choices']}
-                            
-                            if "ท็อปปิ้ง" in option_group['name']: # สมมติว่าท็อปปิ้งเลือกได้หลายอย่าง
-                                chosen_names = st.multiselect(
-                                    f"เลือก {option_group['name']}", options=list(choices_data.keys()),
-                                    key=f"options_{product['id']}_{option_group['name']}"
-                                )
+                            if "ท็อปปิ้ง" in option_group['name']:
+                                chosen_names = st.multiselect(f"เลือก {option_group['name']}", options=list(choices_data.keys()), key=f"options_{product['id']}_{option_group['name']}")
                                 for name in chosen_names:
                                     selected_options.append(choices_data[name])
-                            else: # กลุ่มอื่นเลือกได้แค่อย่างเดียว
-                                chosen_name = st.radio(
-                                    f"เลือก {option_group['name']}", options=list(choices_data.keys()),
-                                    key=f"options_{product['id']}_{option_group['name']}", horizontal=True
-                                )
+                            else:
+                                chosen_name = st.radio(f"เลือก {option_group['name']}", options=list(choices_data.keys()), key=f"options_{product['id']}_{option_group['name']}", horizontal=True)
                                 if chosen_name:
                                     selected_options.append(choices_data[chosen_name])
-                    
                     if st.button("✔️ ยืนยันและเพิ่มลงตะกร้า", key=f"add_{product['id']}", type="primary"):
                         add_to_cart(product, selected_options)
 
-# --- คอลัมน์ขวา: แสดงตะกร้าสินค้า (UI ใหม่สำหรับ Options) ---
 with col_cart:
     st.header("🛒 รายการสั่งซื้อปัจจุบัน")
     if not st.session_state.cart:
@@ -141,42 +105,28 @@ with col_cart:
         header_cols[0].write("**สินค้า**")
         header_cols[1].write("**จำนวน**")
         header_cols[2].write("**ราคารวม**")
-
         for line_item_id, details in list(st.session_state.cart.items()):
             item_cols = st.columns([4, 2, 2, 1])
-            
             with item_cols[0]:
                 st.write(details['name'])
                 if details['selected_options']:
                     options_str = ", ".join([opt['name'] for opt in details['selected_options']])
                     st.caption(f"└ {options_str}")
-
-            new_quantity = item_cols[1].number_input(
-                "Qty", min_value=0, value=details['quantity'],
-                key=f"qty_{line_item_id}", label_visibility="collapsed"
-            )
+            new_quantity = item_cols[1].number_input("Qty", min_value=0, value=details['quantity'], key=f"qty_{line_item_id}", label_visibility="collapsed")
             if new_quantity != details['quantity']:
                 update_quantity(line_item_id, new_quantity)
-            
             unit_price = details['base_price'] + details['options_price']
             item_total = unit_price * details['quantity']
             item_cols[2].write(f"{item_total:.2f}")
-
             if item_cols[3].button("🗑️", key=f"del_{line_item_id}"):
                 remove_from_cart(line_item_id)
-            
             total_amount += item_total
-
         st.divider()
         st.subheader(f"ยอดรวม: {total_amount:.2f} บาท")
-        
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             if st.button("✅ ยืนยันการสั่งซื้อ", use_container_width=True, type="primary"):
-                order_items_to_send = [
-                    {"product_id": d["product_id"], "quantity": d["quantity"], "selected_options": d["selected_options"]}
-                    for d in st.session_state.cart.values()
-                ]
+                order_items_to_send = [{"product_id": d["product_id"], "quantity": d["quantity"], "selected_options": d["selected_options"]} for d in st.session_state.cart.values()]
                 if post_order(order_items_to_send):
                     st.session_state.cart = {}
                     st.balloons()
