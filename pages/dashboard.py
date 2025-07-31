@@ -1,4 +1,5 @@
-# pages/4_📊_Dashboard.py
+# pages/4_📊_Dashboard.py (Patched for backward compatibility)
+
 import streamlit as st
 import requests
 import pandas as pd
@@ -56,9 +57,16 @@ else:
         daily_sales = filtered_orders_df.set_index('order_date').resample('D')['total_amount'].sum().reset_index()
         daily_sales.rename(columns={'order_date': 'วันที่', 'total_amount': 'ยอดขาย'}, inplace=True)
 
+        # --- ส่วน Logic ที่แก้ไขเพื่อรองรับข้อมูลเก่า ---
         all_items_df = filtered_orders_df.explode('items')
-        items_detail_df = pd.json_normalize(all_items_df['items'])
-        
+        items_detail_df = pd.json_normalize(all_items_df['items'].apply(lambda x: x if isinstance(x, dict) else {}))
+
+        # ตรวจสอบและสร้างคอลัมน์ 'item_total' ถ้ายังไม่มี
+        if 'item_total' not in items_detail_df.columns:
+            items_detail_df['item_total'] = 0
+        items_detail_df['item_total'].fillna(0, inplace=True)
+        # --------------------------------------------
+
         top_products = items_detail_df.groupby('product_name')['quantity'].sum().sort_values(ascending=False).reset_index()
         top_products.rename(columns={'product_name': 'สินค้า', 'quantity': 'จำนวนที่ขายได้'}, inplace=True)
         
@@ -68,15 +76,22 @@ else:
             st.bar_chart(daily_sales, x='วันที่', y='ยอดขาย', use_container_width=True)
             
             st.subheader("🍰 ยอดขายตามหมวดหมู่")
-            if products:
+            if products and not items_detail_df.empty:
                 products_df = pd.DataFrame(products)
                 product_category_map = products_df.set_index('id')['category'].to_dict()
-                items_detail_df['category'] = items_detail_df['product_id'].map(product_category_map)
-                category_sales = items_detail_df.groupby('category')['item_total'].sum().reset_index()
-                category_sales.rename(columns={'category': 'หมวดหมู่', 'item_total': 'ยอดขาย'}, inplace=True)
-                fig = px.pie(category_sales, names='หมวดหมู่', values='ยอดขาย', hole=.3)
-                fig.update_traces(textposition='inside', textinfo='percent+label')
-                st.plotly_chart(fig, use_container_width=True)
+                items_detail_df['category'] = items_detail_df['product_id'].apply(lambda x: product_category_map.get(x))
+                category_sales_df = items_detail_df.dropna(subset=['category'])
+                
+                if not category_sales_df.empty:
+                    category_sales = category_sales_df.groupby('category')['item_total'].sum().reset_index()
+                    category_sales.rename(columns={'category': 'หมวดหมู่', 'item_total': 'ยอดขาย'}, inplace=True)
+                    fig = px.pie(category_sales, names='หมวดหมู่', values='ยอดขาย', hole=.3)
+                    fig.update_traces(textposition='inside', textinfo='percent+label')
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("ไม่พบข้อมูลยอดขายตามหมวดหมู่ในช่วงเวลานี้")
+            else:
+                 st.info("ไม่สามารถแสดงยอดขายตามหมวดหมู่ได้")
 
         with col2:
             st.subheader("⭐ 5 อันดับสินค้าขายดี")
