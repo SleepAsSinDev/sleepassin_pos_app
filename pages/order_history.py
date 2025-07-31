@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 from datetime import datetime
 
-API_BASE_URL = "http://192.168.1.50:80"
+API_BASE_URL = "http://localhost:8000"
 
 def get_all_orders():
     try:
