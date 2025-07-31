@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 # ⚙️ การตั้งค่าและฟังก์ชัน API
 # -----------------------------------------------------------------------------
 
-API_BASE_URL = "http://localhost:8000" # แก้ไข IP ของคุณ
+API_BASE_URL = "http://192.168.137.22:8000" # แก้ไข IP ของคุณ
 
 # ใช้ @st.cache_data เพื่อให้ Streamlit เก็บผลลัพธ์ไว้ ไม่ต้องดึงใหม่ทุกครั้งที่คลิก
 @st.cache_data(ttl=300) # เก็บ cache ไว้ 5 นาที
